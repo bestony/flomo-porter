@@ -19,8 +19,10 @@ package cmd
 import (
 	"archive/zip"
 	"fmt"
+	"github.com/PuerkitoBio/goquery"
 	"github.com/spf13/cobra"
 	"io"
+	"log"
 	"strings"
 )
 
@@ -58,7 +60,24 @@ var portCmd = &cobra.Command{
 		for _, file := range zf.File {
 			if strings.Contains(file.Name, "index") {
 				fmt.Printf("=%s\n", file.Name)
-				fmt.Printf("%s\n\n", readAll(file)) // file content
+				html := string(readAll(file))
+
+				doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				doc.Find(".memo").Each(func(i int, selection *goquery.Selection) {
+					content := selection.Find(".content").Text()
+					time := selection.Find(".time").Text()
+					selection.Find(".files").Each(func(i int, file_element *goquery.Selection) {
+						url, exists := file_element.Attr("src")
+						fmt.Println(exists, url)
+					})
+
+					fmt.Println(time, content)
+				})
+
 			}
 
 		}
