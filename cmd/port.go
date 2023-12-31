@@ -17,22 +17,71 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 package cmd
 
 import (
+	"archive/zip"
 	"fmt"
-
+	"github.com/PuerkitoBio/goquery"
 	"github.com/spf13/cobra"
+	"io"
+	"log"
+	"strings"
 )
+
+func readAll(file *zip.File) []byte {
+	fc, err := file.Open()
+	if err != nil {
+		panic(err)
+	}
+	defer fc.Close()
+
+	content, err := io.ReadAll(fc)
+	if err != nil {
+		panic(err)
+	}
+
+	return content
+}
 
 // portCmd represents the port command
 var portCmd = &cobra.Command{
-	Use:   "port",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Use:   "port [zip file path]",
+	Short: "port flomo zip file to target dest",
+	Args:  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 	Run: func(cmd *cobra.Command, args []string) {
+		filePath := args[0]
+
+		zf, err := zip.OpenReader(filePath)
+
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer zf.Close()
+
+		for _, file := range zf.File {
+			if strings.Contains(file.Name, "index") {
+				fmt.Printf("=%s\n", file.Name)
+				html := string(readAll(file))
+
+				doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				doc.Find(".memo").Each(func(i int, selection *goquery.Selection) {
+					content := selection.Find(".content").Text()
+					time := selection.Find(".time").Text()
+					selection.Find(".files").Each(func(i int, file_element *goquery.Selection) {
+						url, exists := file_element.Attr("src")
+						fmt.Println(exists, url)
+					})
+
+					fmt.Println(time, content)
+				})
+
+			}
+
+		}
+
 		fmt.Println("port called")
 	},
 }
